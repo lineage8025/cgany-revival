@@ -4,7 +4,7 @@
 
 ## 目前狀態（2026-10-22）
 
-- **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。唯一的例外是 itaiwan 的 `/phpadm/` 和 `/vbb/member.php`，2026-10-22 晚上在 Windows 那邊補抓中。如果它們的索引檔行數不到 4,351 和 1,055，代表還沒跑完或中斷了，可以用 `tools/crawl2.py` 加 `cgany_crawl/` 裡的 `tp_a.txt`、`tp_b.txt`、`targets_vbbmember.txt` 續跑。
+- **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。itaiwan 的 `/phpadm/` 和 `/vbb/member.php` 也在 2026-10-23 補抓完了：phpadm 4,316 / 4,351 頁（剩下 35 頁重試後仍是 404），member.php 1,055 / 1,055 頁。
 - **私人 repo**：`lineage8025/cgany-revival`。Windows 這邊已經有一份 clone 在 `%USERPROFILE%\cgany-revival\`，目前只有工具和文件。
 - **架構分析**已完成，見 `ARCHITECTURE.md`。
 - **已開給夥伴試看**（2026-10-23）：<https://cgany.loveloli.org>，經 Cloudflare Tunnel `cgany-revival`（cloudflared 跑在本機 compose 的 `tunnel` 服務）＋Access application `cgany-revival`（Everyone、One-time PIN、session 168h）。管理用的 Cloudflare API token 在本機 `~/.config/cloudflare/cgany.env`，tunnel token 在 repo 的 `.env`，兩者都不進版控。切到公開模式後，本機的 `*.localhost` 網址不再適用，一律走公開網址。
@@ -69,6 +69,21 @@
    - 檔案放在 `cgany_archive/raw/cgany.itaiwan.net/...`，有 host 這一層，跟早期抓的 itaiwan 頁面不同。
    - 索引檔是 `index_phpadm_a.tsv`、`index_phpadm_b.tsv`、`index_vbbmember.tsv`。
    - 這些頁面含當年會員的 email、密碼雜湊、IP 等個資。**只能在本機使用；如果復活的網站要公開，必須先拿掉這些欄位。**
+   - **`member.php` 全部都是「請先登入」頁**，沒有會員資料，可以忽略。
+   - **phpadm 能還原的資料**：`sql.php` 頁面全部都是 `pos=0`，也就是每頁只有前 30 筆。但爬蟲點過每個欄位的排序（ORDER BY 各欄 ASC/DESC），加上 24 種語系版本，所以把所有頁面的列合併、以主鍵去重後，能拼出的筆數如下（另有 2002–2003 年不同時間的快照，同一筆內容可能不同）：
+
+     | 資料表 | 可還原筆數 | 當時總筆數 |
+     |---|---|---|
+     | thread | 534 | 3,403 |
+     | post | 430 | 39,359 |
+     | user | 383 | 2,343 |
+     | privatemessage | 321 | 789 |
+     | template | 179 | 497 |
+     | pollvote / userfield / subscribethread | 160–173 | 約 2,000–3,000 |
+     | forum、moderator、forumpermission、usergroup、icon、smilie、bbcode、setting、settinggroup、announcement 等設定表 | **全部** | — |
+
+     也就是說，版面結構（看板、權限、表情符號、樣板）可以完整重建，文章只剩約 1%。另外有 `primary_key=...` 的單筆頁面（post 30 筆、user 28 筆），內容較完整。
+   - vBulletin 的文章本體（`showthread.php`）在 Wayback 上幾乎沒有存檔；`/newvbb/` 只有 2002-02 的首頁一頁，其他都是 404。
 
 ## 已知的坑
 

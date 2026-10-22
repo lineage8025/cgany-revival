@@ -44,8 +44,8 @@
 ### 2. vBulletin 2.2.x（itaiwan `/vbb/`，2001–2003）
 
 - 現成的商業軟體，PHP＋MySQL。
-- 存到的頁面以 `member.php`（1,055 頁）和少量 `showthread.php`、`forumdisplay.php` 為主。
-- phpMyAdmin 的 `tbl_properties.php` 頁面可以看到資料庫表格結構，`sql.php` 可以看到資料表內容。這些頁面已在 2026-10-22 補抓，見 HANDOFF。
+- 存到的頁面以 `member.php`（1,055 頁，全是登入頁）和少量 `showthread.php`、`forumdisplay.php` 為主。
+- phpMyAdmin 的 `tbl_properties.php` 頁面可以看到資料庫表格結構，`sql.php` 可以看到資料表內容。這些頁面已在 2026-10-23 補抓完成：設定類資料表完整，文章和會員只剩部分，筆數見 HANDOFF。
 
 ### 3. LeoBBS（itaiwan `/bbs/`，2001）
 
