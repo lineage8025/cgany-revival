@@ -5,19 +5,20 @@
 ## 目前狀態（2026-10-22）
 
 - **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。唯一的例外是 itaiwan 的 `/phpadm/` 和 `/vbb/member.php`，2026-10-22 晚上在 Windows 那邊補抓中。如果它們的索引檔行數不到 4,351 和 1,055，代表還沒跑完或中斷了，可以用 `tools/crawl2.py` 加 `cgany_crawl/` 裡的 `tp_a.txt`、`tp_b.txt`、`targets_vbbmember.txt` 續跑。
-- **私人 repo**：`lineage8025/cgany-revival`。Windows 這邊已經有一份 clone 在 `C:\Users\Michael\cgany-revival\`，目前只有工具和文件。
+- **私人 repo**：`lineage8025/cgany-revival`。Windows 這邊已經有一份 clone 在 `%USERPROFILE%\cgany-revival\`，目前只有工具和文件。
 - **架構分析**已完成，見 `ARCHITECTURE.md`。
-- **還沒開始**寫任何復活用的程式。
+- **公開模式**已完成但尚未上線：`.env` 設 `BASE_DOMAIN`（預計 `cgany.loveloli.org`、`SUBDOMAIN_SEP=-`）就切換，部署方式見 `README.md` 的「公開部署」。使用者決定：子網域模式、成人區用原站的 `warning.htm` 當 18 禁確認頁、公告不留信箱、改請大家到 repo 開 issue、圖片都已不在所以不另做版權移除聲明。架設位置還沒決定。
+- **第一版本機瀏覽**已完成：`revive/server.py`，在 WSL 用 `docker compose up -d --build` 啟動，用法見 `README.md` 的「本機瀏覽」。它在送出頁面時才轉碼、改寫連結，原始資料不動，所以原本第 2、3 步（Big5 轉 UTF-8、連結改寫）已經涵蓋。
 
 ## 資料位置（都在 Windows 的 C 槽，不在 repo 裡）
 
 | 內容 | Windows 路徑 | WSL 路徑 |
 |---|---|---|
-| cgany.itaiwan.net（799 頁） | `C:\Users\Michael\cgany_archive\` | `/mnt/c/Users/Michael/cgany_archive/` |
-| cgany.com 全部子網域（23,457 頁） | `C:\Users\Michael\cgany_com_archive\` | `/mnt/c/Users/Michael/cgany_com_archive/` |
-| 網址清單、CDX 索引、抓不到的清單 | `C:\Users\Michael\cgany_crawl\` | `/mnt/c/Users/Michael/cgany_crawl/` |
+| cgany.itaiwan.net（799 頁） | `%USERPROFILE%\cgany_archive\` | `/mnt/c/Users/<帳號>/cgany_archive/` |
+| cgany.com 全部子網域（23,457 頁） | `%USERPROFILE%\cgany_com_archive\` | `/mnt/c/Users/<帳號>/cgany_com_archive/` |
+| 網址清單、CDX 索引、抓不到的清單 | `%USERPROFILE%\cgany_crawl\` | `/mnt/c/Users/<帳號>/cgany_crawl/` |
 
-**請把這三個資料夾當作唯讀的原始資料。** 衍生出來的東西（轉碼、解析結果、重建的網站）請另外放，建議 `/mnt/c/Users/Michael/cgany_build/`，或者放在 WSL 的家目錄。
+**請把這三個資料夾當作唯讀的原始資料。** 衍生出來的東西（轉碼、解析結果、重建的網站）請另外放，建議 `/mnt/c/Users/<帳號>/cgany_build/`，或者放在 WSL 的家目錄。
 
 ### 檔案格式
 
@@ -88,10 +89,8 @@
 ## 建議的下一步（照順序）
 
 1. **貼圖板解析器**：讀索引檔，把所有 `act=click` 的文章頁解析成結構化資料。欄位：板名、文章 ID、主題、作者、發表時間、內文 HTML、圖片網址、回應列表（作者、時間、內容）、來源檔案、Wayback 時間戳。輸出成 SQLite 或 JSONL，放在 repo 外面。先拿 `cg.cgany.com` 的幾百頁試，確認格式穩定後再跑全部。不同年代的版面可能略有差異，請抽樣 2001、2004、2008、2011 年的頁面各看幾頁。
-2. **Big5 轉 UTF-8**：把靜態頁（FrontPage 入口、`rule.txt` 等）轉成 UTF-8，同時把 `<meta charset>` 改成 UTF-8。
-3. **連結改寫**：把頁面裡指向 `cgany.com` 各子網域、`cgany.itaiwan.net` 的絕對和相對網址，對應到本機重建後的路徑。找不到的頁面要有明確標示，不要變成空白頁。
-4. **仿製版貼圖板**：做一個小型網站（靜態產生或本機伺服器都可以），重現列表、文章頁、翻頁、各板切換、首頁入口，外觀沿用存檔的 HTML 和 CSS。
-5. **（選做）外連圖片**：統計圖片網址的網域分佈，挑幾個大宗圖床查 Wayback 的命中率，再決定要不要大規模抓。抓的時候一樣要遵守限速。
-6. **（選做）phpBB 和 Coppermine**：看使用者想要原汁原味（Docker 架 PHP 4 和同版本軟體）還是輕量（直接展示存檔頁）。
+2. **補列表頁**：`revive/server.py` 已用存檔列表當樣板重建各板列表與翻頁（`render_list`），資料來自文章頁的「主題／時間／作者」與回應時間。還沒做的：每個板只用一份樣板（不會隨年代換外觀）、人氣數多半是空的、搜尋沒有重建；完整的解析器（第 1 步）可以補齊這些。
+3. **（選做）外連圖片**：第一版已經讓瀏覽器即時向 Wayback 拿外站圖片。要離線也看得到，再統計圖片網址的網域分佈，挑幾個大宗圖床查 Wayback 的命中率，決定要不要大規模抓。抓的時候一樣要遵守限速。
+4. **（選做）phpBB 和 Coppermine**：看使用者想要原汁原味（Docker 架 PHP 4 和同版本軟體）還是輕量（第一版已經能直接展示存檔頁）。
 
 每完成一步，請更新 `README.md` 的待辦清單和這份 HANDOFF。

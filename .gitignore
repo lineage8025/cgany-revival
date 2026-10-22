@@ -3,3 +3,4 @@ raw/
 *.tsv
 __pycache__/
 MEMORY.md
+.env

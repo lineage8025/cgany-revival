@@ -1,0 +1,28 @@
+services:
+  revive:
+    build: ./revive
+    ports:
+      - "127.0.0.1:${CGANY_PORT:-8000}:8000"
+    volumes:
+      - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_archive:/data/cgany_archive:ro
+      - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_com_archive:/data/cgany_com_archive:ro
+      - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_build/override:/data/override:ro
+    environment:
+      BASE_DOMAIN: "${BASE_DOMAIN:-}"
+      SUBDOMAIN_SEP: "${SUBDOMAIN_SEP:-}"
+      PUBLIC_SCHEME: "${PUBLIC_SCHEME:-}"
+      AGE_GATE: "${AGE_GATE:-}"
+      MASK_EMAILS: "${MASK_EMAILS:-}"
+      WAYBACK_EXTERNAL: "${WAYBACK_EXTERNAL:-0}"
+      PRIVATE_PAGES: "${PRIVATE_PAGES:-0}"
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:2025.8.1
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN:-}"
+    depends_on:
+      - revive
+    restart: unless-stopped
