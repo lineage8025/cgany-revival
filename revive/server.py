@@ -506,13 +506,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.blackhole(200, "這是連到外站的連結。當年的網站多半已經關閉或換了主人，直接點過去可能會連到不相干的網站。", to, external=True)
         if is_private(host, path) and not PRIVATE_PAGES:
             return self.blackhole(403, PRIVATE_NOTE)
-        try:
-            local = (OVERRIDE / host / urllib.parse.unquote(path).lstrip("/")).resolve()
-            local = local if local.is_relative_to(OVERRIDE) and local.is_file() else None
-        except (ValueError, OSError):
-            local = None
-        if local:
-            return self.serve(local.read_bytes(), path, f"http://{host}{path}", "local", base, host)
+        for name in [""] + (list(DIR_INDEX) if path.endswith("/") else []):
+            try:
+                local = (OVERRIDE / host / urllib.parse.unquote(path + name).lstrip("/")).resolve()
+                if local.is_relative_to(OVERRIDE) and local.is_file():
+                    return self.serve(local.read_bytes(), path + name, f"http://{host}{path}{name}", "local", base, host)
+            except (ValueError, OSError):
+                pass
         if is_list(path, query):
             q = {k: v[0] for k, v in urllib.parse.parse_qs(query).items()}
             page, year = q.get("page", "1")[:6], q.get("year", "")
