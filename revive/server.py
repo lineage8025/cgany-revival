@@ -31,7 +31,13 @@ AUDIO_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", "
                ".flac": "audio/flac", ".wav": "audio/wav", ".webm": "audio/webm"}
 PLAYLIST_LINE = re.compile(r"""^\s*listTrack\(\s*'([^']*)'\s*,\s*"([^"]*)"\s*,\s*(\d+)\s*,\s*(\d+)\s*\)""", re.M)
 LINK_NOTES = {"www.cgany.com/menuex2.htm": "原站長遺留的選單，不知道是做什麼用的（點進去只有「測試」）"}
-PRIVATE_NOTE = "這一頁含當年會員的個資，預設不提供。要瀏覽請設 PRIVATE_PAGES=1 後重啟。"
+AGE_NOTICE = ("本網站已依網站內容分級規定處理。<br><br>警告：您即將進入之看板內容需滿十八歲方可瀏覽。<br><br>"
+              "若您尚未年滿十八歲，請點選離開。若您已滿十八歲，亦不可將本區之內容派發、傳閱、出售、出租、交給或借予"
+              "年齡未滿十八歲的人士瀏覽，或將本網站內容向該人士出示、播放或放映。")
+AGE_ENTER = "我同意，我已年滿十八歲<br>進入"
+AGE_LEAVE = "未滿十八歲或不同意本條款<br>離開"
+PRIVATE_NOTE ="這一頁含當年會員的個資，預設不提供。要瀏覽請設 PRIVATE_PAGES=1 後重啟。"
+IMG_TAG = re.compile(r"(?is)<img\b[^>]*>")
 EMAIL = re.compile(r"([\w.+-]+)(?:@|%40|&#64;|&#x40;)((?:[\w-]+\.)+[A-Za-z]{2,})", re.I)
 IMAGE_MAGIC = {b"GIF87a": "image/gif", b"GIF89a": "image/gif", b"\xff\xd8\xff": "image/jpeg", b"\x89PNG\r\n": "image/png"}
 
@@ -96,6 +102,26 @@ def is_adult(host, path):
 
 def mask_emails(text):
     return EMAIL.sub(lambda m: m.group(1)[0] + "***@" + m.group(2), text) if MASK_EMAILS else text
+
+
+def hide_images(text, page_url):
+    def resolve(link):
+        try:
+            return split_url(urllib.parse.urljoin(page_url, html.unescape(link)))[:2]
+        except ValueError:
+            return "", ""
+
+    def img(m):
+        src = re.search(r"""(?i)\bsrc\s*=\s*["']?([^"'\s>]+)""", m.group(0))
+        host, path = resolve(src.group(1)) if src else ("", "")
+        return m.group(0) if is_cgany(host) and re.match(r"/(?:icons|image)/", path) else '<span style="color:#808080">（圖片已隱藏）</span>'
+
+    def image_link(m):
+        host, _ = resolve(m.group(2))
+        return m.group(0) if is_cgany(host) else f"<a{m.group(1)}{m.group(3)}>"
+    text = IMG_TAG.sub(img, text)
+    text = re.sub(r"""(?is)<a\b([^>]*?)\bhref\s*=\s*["']?([^"'\s>]+\.(?:jpe?g|png|gif|bmp|webp))["']?([^>]*)>""", image_link, text)
+    return re.sub(r"""(?i)\bbackground\s*=\s*["']?https?://[^"'\s>]+["']?""", "", text)
 
 
 def valid_host(host):
@@ -537,7 +563,10 @@ class Handler(BaseHTTPRequestHandler):
     def serve(self, data, path, url, ts, base, host):
         ctype = self.content_type(path, data)
         if ctype == "text/html":
-            return self.send_html(decode(data), url, ts, base, host)
+            text = decode(data)
+            if is_adult(host, path) or is_adult(*split_url(url)[:2]):
+                text = hide_images(text, url)
+            return self.send_html(text, url, ts, base, host)
         if ctype.startswith("text/") or ctype.endswith("javascript"):
             text = local_playlist(decode(data), host) if Path(path).name == "iw_listTrack.js" else decode(data)
             data, ctype = self.localize(text, base).encode("utf-8"), ctype + "; charset=utf-8"
@@ -607,10 +636,12 @@ class Handler(BaseHTTPRequestHandler):
         if warning:
             doc = re.sub(r"(?i)(<meta[^>]*charset\s*=\s*[\"']?)[\w-]+", r"\1utf-8", decode(warning[1].read_bytes()))
             doc = re.sub(r"(?i)<head>", lambda m: f'{m.group(0)}<base href="{html.escape(www)}/">', doc, count=1)
-            doc = re.sub(r"(?is)(<a\b[^>]*?\bhref\s*=\s*[\"']?)[^\"'\s>]*([^>]*>\s*已滿18)", lambda m: m.group(1) + enter + m.group(2), doc, count=1)
+            doc = re.sub(r"(?is)(<a\b[^>]*?\bhref\s*=\s*[\"']?)[^\"'\s>]*([^>]*>\s*)已滿18", lambda m: m.group(1) + enter + m.group(2) + AGE_ENTER, doc, count=1)
+            doc = re.sub(r"(?is)(<a\b[^>]*>\s*)未滿18", lambda m: m.group(1) + AGE_LEAVE, doc, count=1)
+            doc = re.sub(r"(?s)此內容包含成人色情18禁內容.*?不負任何的法律責任！", AGE_NOTICE, doc, count=1)
         else:
             doc = (f"<!doctype html><meta charset=utf-8><title>成人區</title><style>{BLACKHOLE_CSS}</style><body><div class=hole></div>"
-                   f"<h1>成人區</h1><p>未滿 18 歲請離開。</p><p><a href='{enter}'>已滿18</a>　<a href='javascript:history.back()'>未滿18</a></p></body>")
+                   f"<p>{AGE_NOTICE}</p><p><a href='{enter}'>{AGE_ENTER}</a>　<a href='javascript:history.back()'>{AGE_LEAVE}</a></p></body>")
         self.send(200, "text/html; charset=utf-8", doc.encode("utf-8"), {"Cache-Control": "no-store"})
 
     def ghost_page(self, it):

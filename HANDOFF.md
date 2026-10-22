@@ -7,7 +7,7 @@
 - **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。唯一的例外是 itaiwan 的 `/phpadm/` 和 `/vbb/member.php`，2026-10-22 晚上在 Windows 那邊補抓中。如果它們的索引檔行數不到 4,351 和 1,055，代表還沒跑完或中斷了，可以用 `tools/crawl2.py` 加 `cgany_crawl/` 裡的 `tp_a.txt`、`tp_b.txt`、`targets_vbbmember.txt` 續跑。
 - **私人 repo**：`lineage8025/cgany-revival`。Windows 這邊已經有一份 clone 在 `%USERPROFILE%\cgany-revival\`，目前只有工具和文件。
 - **架構分析**已完成，見 `ARCHITECTURE.md`。
-- **公開模式**已完成但尚未上線：`.env` 設 `BASE_DOMAIN`（預計 `cgany.loveloli.org`、`SUBDOMAIN_SEP=-`）就切換，部署方式見 `README.md` 的「公開部署」。使用者決定：子網域模式、成人區用原站的 `warning.htm` 當 18 禁確認頁、公告不留信箱、改請大家到 repo 開 issue、圖片都已不在所以不另做版權移除聲明。架設位置還沒決定。
+- **公開模式**已完成但尚未上線：`.env` 設 `BASE_DOMAIN`（預計 `cgany.loveloli.org`、`SUBDOMAIN_SEP=-`）就切換，部署方式見 `README.md` 的「公開部署」。使用者決定：子網域模式、成人區的圖片全部遮掉，進入前的確認頁用原站 `warning.htm` 的外觀、內文改成分級標示與條款、公告不留信箱、改請大家到 repo 開 issue、圖片都已不在所以不另做版權移除聲明。架設位置還沒決定。
 - **第一版本機瀏覽**已完成：`revive/server.py`，在 WSL 用 `docker compose up -d --build` 啟動，用法見 `README.md` 的「本機瀏覽」。它在送出頁面時才轉碼、改寫連結，原始資料不動，所以原本第 2、3 步（Big5 轉 UTF-8、連結改寫）已經涵蓋。
 
 ## 資料位置（都在 Windows 的 C 槽，不在 repo 裡）

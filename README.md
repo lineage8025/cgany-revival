@@ -73,7 +73,9 @@ SUBDOMAIN_SEP=-
 | `cgany.itaiwan.net` | `itaiwan-cgany.loveloli.org` | `itaiwan.cgany.loveloli.org` |
 
 - 用點的寫法是兩層子網域，Cloudflare 免費的 Universal SSL 只涵蓋一層（`*.loveloli.org`），要另外買 Advanced Certificate；用連字號就不用。
-- 成人區（hcg、itaiwan 的 `/hcg/`、www 的 `/hcg/`、`/q7q7/`）不論本機或公開，都先顯示原站的 18 禁警告頁，按「已滿18」後 30 天內不再問（`AGE_GATE=0` 可關）。少數外站圖（主要是 imgur）至今還在，會由訪客的瀏覽器直接向外站載入。
+- 成人區（hcg、itaiwan 的 `/hcg/`、www 的 `/hcg/`、`/q7q7/`）不論本機或公開：
+  - 進入前先顯示確認頁：外觀是原站的 18 禁警告頁，內文改成「本網站已依網站內容分級規定處理」的分級標示與條款；同意後 30 天內不再問（`AGE_GATE=0` 可關）。
+  - 文章裡的圖片一律遮成「（圖片已隱藏）」，連到圖檔的連結也拿掉，只留文字。
 - 公開模式另外會自動：頁面裡的 email 遮成 `a***@gmail.com`；強制關閉會員個資頁；關閉路徑模式。
 - 文章總覽在任一子網域的 `/__archive/`。
 
@@ -87,6 +89,7 @@ SUBDOMAIN_SEP=-
 
 - `ARCHITECTURE.md`：原站的技術架構分析
 - `HANDOFF.md`：交接說明，給接手的人或 agent 看
+- `PLAN-6.0.md`：模擬CG美少女 6.0（可發文的新站）規劃草案
 
 ## 工具
 
