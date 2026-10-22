@@ -4,7 +4,7 @@
 
 ## 目前狀態（2026-10-22）
 
-- **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。
+- **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。唯一的例外是 itaiwan 的 `/phpadm/` 和 `/vbb/member.php`，2026-10-22 晚上在 Windows 那邊補抓中。如果它們的索引檔行數不到 4,351 和 1,055，代表還沒跑完或中斷了，可以用 `tools/crawl2.py` 加 `cgany_crawl/` 裡的 `tp_a.txt`、`tp_b.txt`、`targets_vbbmember.txt` 續跑。
 - **私人 repo**：`lineage8025/cgany-revival`。Windows 這邊已經有一份 clone 在 `C:\Users\Michael\cgany-revival\`，目前只有工具和文件。
 - **架構分析**已完成，見 `ARCHITECTURE.md`。
 - **還沒開始**寫任何復活用的程式。
@@ -61,8 +61,12 @@
 ## 使用者已經做的決定（不要推翻）
 
 1. **抓下來的頁面不能進 repo，任何一頁都不行。** hcg 是成人 CG 板，即使是私人 repo，GitHub 規範也不允許，有停權風險。repo 只放程式碼、工具和文件。`.gitignore` 已經擋了 `raw/` 和 `*.tsv`；如果你產生了新的資料檔（JSON、SQLite、轉碼後的 HTML），**也要放在 repo 外面，或者加進 `.gitignore`**。
-2. **itaiwan 的 `/phpadm/` 刻意沒抓。** 那是站長沒上鎖的 phpMyAdmin，可能含會員 email 和密碼雜湊。如果需要資料庫結構，只能抓 `tbl_properties.php` 這類結構頁，而且要**先問使用者**。
-3. **itaiwan 的 `/vbb/member.php`（1,055 頁會員資料）沒抓**，使用者還沒決定要不要補。
+2. **itaiwan 的 `/phpadm/` 和 `/vbb/member.php` 在 2026-10-22 依使用者指示全部補抓。**
+   - `/phpadm/` 是站長沒上鎖的 phpMyAdmin，共 4,351 頁，其中 `sql.php` 是瀏覽資料表的頁面，可能有 vBulletin 的文章內容。
+   - `member.php` 是會員資料頁，共 1,055 頁。
+   - 檔案放在 `cgany_archive/raw/cgany.itaiwan.net/...`，有 host 這一層，跟早期抓的 itaiwan 頁面不同。
+   - 索引檔是 `index_phpadm_a.tsv`、`index_phpadm_b.tsv`、`index_vbbmember.tsv`。
+   - 這些頁面含當年會員的 email、密碼雜湊、IP 等個資。**只能在本機使用；如果復活的網站要公開，必須先拿掉這些欄位。**
 
 ## 已知的坑
 
