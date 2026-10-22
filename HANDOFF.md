@@ -82,11 +82,7 @@
 
 - WSL 裡要先登入 GitHub（`gh auth login`），再 `gh repo clone lineage8025/cgany-revival`，建議 clone 到 WSL 家目錄。程式要讀的資料走 `/mnt/c/...`。
 - **不要同時在 Windows 那份 clone 和 WSL 這份 clone 裡改東西**，會衝突。動手前先 `git pull`。
-- commit 作者請設成和之前一樣，用 noreply 信箱，避免公開使用者的真實 email：
-  ```
-  git config user.name lineage8025
-  git config user.email 43869731+lineage8025@users.noreply.github.com
-  ```
+- commit 作者：WSL 這份 clone 直接用全域的 `~/.gitconfig`，不另外設 repo 層級的 `user.name` / `user.email`（使用者 2026-10-22 決定）。Windows 那份 clone 之前用的是 noreply 信箱 `43869731+lineage8025@users.noreply.github.com`。
 - 換行規則寫在 `.gitattributes`：`.bat` 檔固定用 CRLF，其他檔案由 git 自動處理。
 
 ## 建議的下一步（照順序）
