@@ -1,0 +1,4 @@
+# Archived pages stay on the local disk only
+raw/
+*.tsv
+__pycache__/
