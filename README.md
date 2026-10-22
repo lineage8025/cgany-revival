@@ -85,6 +85,8 @@ SUBDOMAIN_SEP=-
 2. 在該 tunnel 的 Public Hostname 加入要公開的主機名，Service 都填 `http://revive:8000`。至少要有 `cgany`、`www-cgany`、`cg-cgany`、`hcg-cgany`、`do-cgany`、`test-cgany`、`acg-cgany`、`bbs-cgany`、`itaiwan-cgany`（都接在 `.loveloli.org` 後面）。
 3. 啟動：`docker compose --profile tunnel up -d --build`
 
+只想先開給少數人看時，前面加一道 Cloudflare Access（站本身不用改）：Zero Trust → Access → Applications → Self-hosted，把上面的主機名都加進同一個 application，Policy 設 Allow、Include 選 Everyone、登入方式用 One-time PIN。訪客輸入自己的信箱、收驗證碼就能進；之後要收緊，把 Include 改成指定信箱即可。
+
 ## 文件
 
 - `ARCHITECTURE.md`：原站的技術架構分析
