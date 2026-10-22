@@ -31,7 +31,7 @@ AUDIO_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", "
                ".flac": "audio/flac", ".wav": "audio/wav", ".webm": "audio/webm"}
 PLAYLIST_LINE = re.compile(r"""^\s*listTrack\(\s*'([^']*)'\s*,\s*"([^"]*)"\s*,\s*(\d+)\s*,\s*(\d+)\s*\)""", re.M)
 LINK_NOTES = {"www.cgany.com/menuex2.htm": "原站長遺留的選單，不知道是做什麼用的（點進去只有「測試」）"}
-PRIVATE_NOTE ="這一頁含當年會員的個資，預設不提供。要瀏覽請設 PRIVATE_PAGES=1 後重啟。"
+PRIVATE_NOTE = "這一頁含當年會員的個資，預設不提供。要瀏覽請設 PRIVATE_PAGES=1 後重啟。"
 EMAIL = re.compile(r"([\w.+-]+)(?:@|%40|&#64;|&#x40;)((?:[\w-]+\.)+[A-Za-z]{2,})", re.I)
 IMAGE_MAGIC = {b"GIF87a": "image/gif", b"GIF89a": "image/gif", b"\xff\xd8\xff": "image/jpeg", b"\x89PNG\r\n": "image/png"}
 
@@ -117,7 +117,7 @@ class Archive:
     def __init__(self):
         self.exact, self.nocase, self.articles, self.scripts = {}, {}, {}, {}
         self.hosts = {}
-        self.boards, self.templates, self.overview_progress = None, {}, (0, 0)
+        self.boards, self.templates, self.ghosts, self.overview_progress = None, {}, {}, (0, 0)
         for root in ARCHIVES:
             for idx in sorted(root.glob("index*.tsv")):
                 for line in open(idx, encoding="utf-8", errors="replace"):
@@ -162,7 +162,7 @@ class Archive:
                 return max(pool, key=lambda e: (e[3] == script, e[0]))
 
     def build_overview(self):
-        templates, views = {}, {}
+        templates, views, listed = {}, {}, {}
         for (board, query), pool in self.scripts.items():
             if b"act=" in query:
                 continue
@@ -174,9 +174,12 @@ class Archive:
                 roles, rows = parse_list(text)
                 for row in rows:
                     cells, aid = CELL.findall(row), ARTICLE_ID.search(row)[1]
-                    count = strip_tags(cells[roles.index("views")][1]) if "views" in roles else ""
-                    if count.isdigit():
-                        views[(board, aid)] = max(int(count), views.get((board, aid), 0))
+                    info = {role: strip_tags(cell[1]) for cell, role in zip(cells, roles) if role}
+                    if info.get("views", "").isdigit():
+                        views[(board, aid)] = max(int(info["views"]), views.get((board, aid), 0))
+                    link = ARTICLE_HREF.search(row)
+                    if link and ts > listed.get((board, aid), {}).get("ts", ""):
+                        listed[(board, aid)] = {**info, "ts": ts, "url": urllib.parse.urljoin(url, html.unescape(link[1]))}
                 if len(rows) >= 2 and {"subject", "posted"} <= set(roles) and PAGE_SELECT.search(text):
                     score = (sum((board, i) in self.articles for i in ARTICLE_ID.findall(text)), ts)
                     for key in ((board, split_url(url)[0]), (board, None)):
@@ -205,14 +208,36 @@ class Archive:
             b = boards.setdefault(board, {"names": collections.Counter(), "items": [], "spam": 0})
             if name:
                 b["names"][name] += 1
+            if not item["ok"] and (board, aid) in listed:
+                item.update(title_only(aid, listed[(board, aid)]), url=url)
             if is_spam(item["title"], f"{item['title']} {item['author']}"):
                 b["spam"] += 1
             else:
                 b["items"].append(item)
+        ghosts = {}
+        for (board, aid), row in listed.items():
+            if (board, aid) in self.articles:
+                continue
+            item = {"aid": aid, "url": row["url"], "views": views.get((board, aid)), **title_only(aid, row)}
+            b = boards.setdefault(board, {"names": collections.Counter(), "items": [], "spam": 0})
+            if is_spam(item["title"], f"{item['title']} {item['author']}"):
+                b["spam"] += 1
+            else:
+                b["items"].append(item)
+                ghosts[(board, aid)] = item
         for b in boards.values():
             b["items"].sort(key=lambda it: it["key"])
             b["name"] = b["names"].most_common(1)[0][0] if b["names"] else ""
-        self.boards = boards
+        self.ghosts, self.boards = ghosts, boards
+
+
+def title_only(aid, row):
+    m = re.match(r"(\d{4})/(\d{1,2})/(\d{1,2})-(\d{1,2}):(\d{2})", row.get("posted", ""))
+    replies = row.get("replies", "")
+    return {"ok": False, "ghost": True, "author": row.get("author", ""), "time": row.get("posted", ""),
+            "title": re.sub(r"\s*(New|Up)!$", "", row.get("subject", "")).strip() or "（無標題）",
+            "key": f"{m[1]}/{int(m[2]):02}/{int(m[3]):02} {int(m[4]):02}:{m[5]}" if m else aid[:4],
+            "replies": int(replies) if replies.isdigit() else 0, "last": row.get("last", "").strip()}
 
 
 def decode(data):
@@ -238,6 +263,7 @@ OPTION_VALUE = re.compile(r"""(?is)\bvalue\s*=\s*(["']?)([^"'\s>]+)\1""")
 TR = re.compile(r"(?is)<tr\b(?:(?!<tr\b).)*?</tr>")
 ARTICLE_LINK = re.compile(r"(?is)<a\b[^>]*act=click[^>]*>(.*?)</a>")
 ARTICLE_ID = re.compile(r"act=click&(?:amp;)?file=(\d+)")
+ARTICLE_HREF = re.compile(r"""(?is)<a\b[^>]*?\bhref\s*=\s*["']?([^"'\s>]*act=click[^"'\s>]*)""")
 CELL = re.compile(r"(?is)(<t[dh]\b[^>]*>)(.*?)(</t[dh]>)")
 POST_TIME = re.compile(r"(?:(?<![>＞])發表時間|(?<![>＞表])時間)\s*[:：]\s*(\d{4}/\d{1,2}/\d{1,2}-\d{1,2}:\d{2}(?::\d{2})?)")
 PAGE_SELECT = re.compile(r"(?is)(<select\b[^>]*location\.href[^>]*>).*?(</select>)")
@@ -308,7 +334,7 @@ def render_list(board, host, script, page, srh="", keyword="", year=""):
     if not b or not tpl:
         return None
     _, text, url, ts, roles, row_tpls = tpl
-    items = [it for it in reversed(b["items"]) if it["ok"]]
+    items = [it for it in reversed(b["items"]) if it["ok"] or it.get("ghost")]
     years = sorted({it["key"][:4] for it in items}, reverse=True)
     if year:
         items = [it for it in items if it["key"].startswith(year)]
@@ -499,7 +525,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_html(text, url, ts, base, host)
         entry = ARCHIVE.find(host, path, query)
         if entry is None:
-            return self.missing(host, path, query)
+            ghost = ARCHIVE.ghosts.get((board_of(host, path), article_id(query))) if path.endswith(".pl") else None
+            return self.ghost_page(ghost) if ghost else self.missing(host, path, query)
         ts, file, url, _ = entry
         if is_private(*split_url(url)[:2]) and not PRIVATE_PAGES:
             return self.blackhole(403, PRIVATE_NOTE)
@@ -586,6 +613,17 @@ class Handler(BaseHTTPRequestHandler):
                    f"<h1>成人區</h1><p>未滿 18 歲請離開。</p><p><a href='{enter}'>已滿18</a>　<a href='javascript:history.back()'>未滿18</a></p></body>")
         self.send(200, "text/html; charset=utf-8", doc.encode("utf-8"), {"Cache-Control": "no-store"})
 
+    def ghost_page(self, it):
+        fields = [("主題", it["title"]), ("作者", it["author"]), ("發表時間", it["time"]), ("人氣", it["views"]),
+                  ("回應", it["replies"]), ("最後回應", it["last"])]
+        table = "".join(f"<tr><th>{k}</th><td>{html.escape(str(v))}</td></tr>" for k, v in fields if v not in (None, ""))
+        body = (f"<div class=hole></div><h1>這篇文章沒能留下來</h1><p>當年的列表記下了它的標題，內文卻沒有被保存下來。</p>"
+                f"<table style='margin:0 auto;text-align:left;border-spacing:12px 4px'>{table}</table>"
+                f"<p>如果你手邊還留著這篇，或記得當年的內容，期待有心人幫忙補完。</p>"
+                f"<p><a href='javascript:history.back()'>回上一頁</a></p>")
+        doc = f"<!doctype html><meta charset=utf-8><title>{html.escape(it['title'])}</title><style>{BLACKHOLE_CSS}</style><body>{body}</body>"
+        self.send(404, "text/html; charset=utf-8", doc.encode("utf-8"))
+
     def blackhole(self, status, reason, orig="", external=False):
         links = ["<a href='javascript:history.back()'>回上一頁</a>"]
         if not re.match(r"(?i)https?://", orig):
@@ -610,9 +648,9 @@ class Handler(BaseHTTPRequestHandler):
             done, total = ARCHIVE.overview_progress
             boards = f"<p>正在讀取文章標題：{done:,} / {total:,}，請稍後重新整理。</p>"
         else:
-            boards = "<table border=1 cellpadding=4><tr><th>板</th><th>位置</th><th>文章</th><th>年份</th><th>已隱藏廣告</th></tr>" + "".join(
+            boards = "<table border=1 cellpadding=4><tr><th>板</th><th>位置</th><th>文章</th><th>只剩標題</th><th>年份</th><th>已隱藏廣告</th></tr>" + "".join(
                 f"<tr><td><a href='/__archive/board?b={urllib.parse.quote(k)}'>{html.escape(b['name'] or k)}</a></td><td>{k}</td>"
-                f"<td>{len(b['items']):,}</td><td>{b['items'][0]['key'][:4]}–{b['items'][-1]['key'][:4]}</td><td>{b['spam']:,}</td></tr>"
+                f"<td>{len(b['items']):,}</td><td>{sum(1 for it in b['items'] if it.get('ghost')):,}</td><td>{b['items'][0]['key'][:4]}–{b['items'][-1]['key'][:4]}</td><td>{b['spam']:,}</td></tr>"
                 for k, b in sorted(ARCHIVE.boards.items(), key=lambda kv: -len(kv[1]["items"])) if b["items"]) + "</table>"
         self.page(200, "cgany 存檔", f"<p>{flags}</p><h2>各板文章總覽</h2>{boards}"
                   f"<h2>依網域瀏覽</h2><table border=1 cellpadding=4><tr><th>網域</th><th>頁數</th><th colspan=2>進入</th></tr>{rows}</table>")
@@ -636,12 +674,13 @@ class Handler(BaseHTTPRequestHandler):
                        for y, n in sorted(years.items()))
         rows = "".join(
             f"<tr{'' if it['ok'] else ' style=color:#999'}><td>{it['key']}</td><td><a href='{html.escape(local_link(it['url'], port, path_mode))}'"
-            f"{'' if it['ok'] else ' style=color:#999'}>{html.escape(it['title'])}</a></td><td>{html.escape(it['author'])}</td></tr>"
+            f"{'' if it['ok'] else ' style=color:#999'}>{html.escape(it['title'])}</a>{'（只剩標題）' if it.get('ghost') else ''}</td>"
+            f"<td>{html.escape(it['author'])}</td></tr>"
             for it in b["items"] if it["key"][:4] == year)
         switch = ("" if PUBLIC else f"｜<a href='/__archive/board?b={bq}&y={year}'>改用子網域模式開文章</a>" if path_mode
                   else f"｜<a href='/__archive/board?b={bq}&y={year}&mode=path'>子網域模式打不開？改用路徑模式</a>")
         self.page(200, html.escape(f"{b['name'] or key} 文章總覽"),
-                  f"<p><a href='/__archive/'>回首頁</a>｜{key}｜共 {len(b['items']):,} 篇，已隱藏 {b['spam']:,} 篇廣告{switch}</p>"
+                  f"<p><a href='/__archive/'>回首頁</a>｜{key}｜共 {len(b['items']):,} 篇（其中 {sum(1 for it in b['items'] if it.get('ghost')):,} 篇只剩標題），已隱藏 {b['spam']:,} 篇廣告{switch}</p>"
                   f"<p>{nav}</p><table border=1 cellpadding=4><tr><th>發表時間</th><th>主題</th><th>作者</th></tr>{rows}</table>")
 
     def page(self, status, title, body):
