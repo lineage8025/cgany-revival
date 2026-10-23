@@ -96,6 +96,8 @@ SUBDOMAIN_SEP=-
 
 **下架清單**：`<DATA>/cgany_build/override/takedown.txt` 一行一個網址（原站或公開網址皆可，`#` 為註解）。命中的頁面回「此內容已移除」（HTTP 410），貼圖板列表、搜尋、文章總覽與 vBulletin 看板也會一起拿掉；貼圖板以「板＋文章編號」比對，vBulletin 可指定整個討論串（`threadid=`）或單篇（`postid=`）。檔案改了會自動重新讀取，用 `tools/deploy.sh` 同步即可。
 
+**擋外站程式**：網頁回應都帶 `Content-Security-Policy`，script、iframe、object 只能從本站網域載入，存檔頁面裡當年外站的 script（計數器、廣告等）不會執行；外站圖片不受影響。
+
 **不讓搜尋引擎收錄**：每個子網域的 `/robots.txt` 都回「全部禁止」，每個回應也帶 `X-Robots-Tag: noindex, nofollow, noarchive`；要讓搜尋引擎收錄時設 `NOINDEX=0`。
 
 **存取紀錄**：網站會把每個請求記到 `<DATA>/logs/access-YYYY-MM-DD.log`（時間、訪客 IP、國家、Cloudflare Access 登入信箱、網址、狀態碼），超過 30 天自動刪除（`ACCESS_LOG_DAYS` 可改）；`docker logs` 裡不含這些個資。資料夾要先建好並讓容器的 UID 65534 寫得進去（例如 `sudo chown 65534:65534 <DATA>/logs`），沒有就不記。`tools/report.sh [天數]` 會在部署主機上彙總：每位訪客看了幾頁、看了哪些、最常被看的頁面。

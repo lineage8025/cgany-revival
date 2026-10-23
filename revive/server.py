@@ -13,6 +13,8 @@ PUBLIC = bool(BASE_DOMAIN)
 SUBDOMAIN_SEP = "-" if os.environ.get("SUBDOMAIN_SEP") == "-" and BASE_DOMAIN.count(".") >= 2 else "."
 COOKIE_DOMAIN = BASE_DOMAIN.split(".", 1)[1] if SUBDOMAIN_SEP == "-" else BASE_DOMAIN
 PUBLIC_SCHEME = os.environ.get("PUBLIC_SCHEME") or "https"
+OWN_ORIGINS = f"{PUBLIC_SCHEME}://{COOKIE_DOMAIN} {PUBLIC_SCHEME}://*.{COOKIE_DOMAIN}" if PUBLIC else "http://localhost:* http://*.localhost:*"
+CSP = f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {OWN_ORIGINS}; frame-src 'self' {OWN_ORIGINS}; object-src 'self' {OWN_ORIGINS}"
 WAYBACK_EXTERNAL = os.environ.get("WAYBACK_EXTERNAL", "0") == "1"
 PRIVATE_PAGES = os.environ.get("PRIVATE_PAGES", "0") == "1" and not PUBLIC
 AGE_GATE = (os.environ.get("AGE_GATE") or "1") == "1"
@@ -865,6 +867,8 @@ class Handler(BaseHTTPRequestHandler):
                 data = mask_emails(data.decode("utf-8")).encode("utf-8")
         if NOINDEX:
             headers = {"X-Robots-Tag": "noindex, nofollow, noarchive", **(headers or {})}
+        if ctype.startswith("text/html"):
+            headers = {"Content-Security-Policy": CSP, **headers}
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
