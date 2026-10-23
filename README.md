@@ -100,6 +100,8 @@ SUBDOMAIN_SEP=-
 
 部署在另一台主機時（例如雲端 VM）：在那台 clone 這個 repo、把資料夾複製過去、建好它自己的 `.env`（`CGANY_DATA` 改成那台的路徑，tunnel token 用同一個），之後在本機執行 `tools/deploy.sh` 就會：同步 `cgany_build`（override 與 vBulletin 資料，以本機為準，本機刪掉的檔案那邊也會刪）、在那台 `git pull` 並重新建置、重啟。存檔資料有變動時加 `--data`。腳本要求程式改動已經 commit 並 push。
 
+**下架清單**：`<DATA>/cgany_build/override/takedown.txt` 一行一個網址（原站或公開網址皆可，`#` 為註解）。命中的頁面回「此內容已移除」（HTTP 410），貼圖板列表、搜尋、文章總覽與 vBulletin 看板也會一起拿掉；貼圖板以「板＋文章編號」比對，vBulletin 可指定整個討論串（`threadid=`）或單篇（`postid=`）。檔案改了會自動重新讀取，用 `tools/deploy.sh` 同步即可。
+
 **不讓搜尋引擎收錄**：每個子網域的 `/robots.txt` 都回「全部禁止」，每個回應也帶 `X-Robots-Tag: noindex, nofollow, noarchive`；要讓搜尋引擎收錄時設 `NOINDEX=0`。
 
 **存取紀錄**：網站會把每個請求記到 `<DATA>/logs/access-YYYY-MM-DD.log`（時間、訪客 IP、國家、Cloudflare Access 登入信箱、網址、狀態碼），超過 30 天自動刪除（`ACCESS_LOG_DAYS` 可改）；`docker logs` 裡不含這些個資。資料夾要先建好並讓容器的 UID 65534 寫得進去（例如 `sudo chown 65534:65534 <DATA>/logs`），沒有就不記。`tools/report.sh [天數]` 會在部署主機上彙總：每位訪客看了幾頁、看了哪些、最常被看的頁面。

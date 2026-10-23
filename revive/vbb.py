@@ -104,6 +104,7 @@ def outer_rows(text, marker):
 class Board:
     def __init__(self, find, decode):
         self.find, self.decode, self.ready = find, decode, False
+        self.removed = lambda kind, value: False
         if not DATA.exists():
             return
         d = json.loads(DATA.read_text(encoding="utf-8"))
@@ -178,7 +179,7 @@ class Board:
         if not rows:
             return None
         head, tail = self.swap_forum(text[:rows[0][0]], text[rows[-1][1]:], int(re.search(r"forumid=(\d+)", url).group(1)), fid)
-        threads = sorted((t for t in self.threads.values() if int(t.get("forumid") or 0) == fid),
+        threads = sorted((t for t in self.threads.values() if int(t.get("forumid") or 0) == fid and not self.removed("vbbthread", t["threadid"])),
                          key=lambda t: (-int(t.get("sticky") or 0), -int(t.get("lastpost") or t.get("dateline") or 0)))
         body = "".join(self.thread_row(t) for t in threads) or \
             '<tr><td bgcolor="#202020" colspan="7" align="center"><font face="新細明體">這個看板的討論串沒有被保存下來。</font></td></tr>'
@@ -219,7 +220,7 @@ class Board:
 
     def showthread(self, tid):
         shell = self.shell(THREAD_SHELL)
-        posts = self.posts.get(tid)
+        posts = [p for p in self.posts.get(tid, []) if not self.removed("vbbpost", int(p["postid"]))]
         if not shell or not posts or not self.ready:
             return None
         text, url, ts = shell

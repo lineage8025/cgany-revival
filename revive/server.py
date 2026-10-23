@@ -17,6 +17,7 @@ WAYBACK_EXTERNAL = os.environ.get("WAYBACK_EXTERNAL", "0") == "1"
 PRIVATE_PAGES = os.environ.get("PRIVATE_PAGES", "0") == "1" and not PUBLIC
 AGE_GATE = (os.environ.get("AGE_GATE") or "1") == "1"
 NOINDEX = (os.environ.get("NOINDEX") or "1") == "1"
+TAKEDOWN_FILE = Path(os.environ.get("TAKEDOWN_FILE", "/data/override/takedown.txt"))
 ACCESS_LOG_DIR = Path(os.environ.get("ACCESS_LOG_DIR", "/data/logs"))
 ACCESS_LOG_DAYS = int(os.environ.get("ACCESS_LOG_DAYS", "30"))
 MASK_EMAILS = (os.environ.get("MASK_EMAILS") or ("1" if PUBLIC else "0")) == "1"
@@ -42,6 +43,7 @@ AGE_NOTICE = ("本網站已依網站內容分級規定處理。<br><br>警告：
               "年齡未滿十八歲的人士瀏覽，或將本網站內容向該人士出示、播放或放映。")
 AGE_ENTER = "我同意，我已年滿十八歲<br>進入"
 AGE_LEAVE = "未滿十八歲或不同意本條款<br>離開"
+TAKEDOWN_NOTE = "此內容已應原作者或當事人的要求移除。"
 PRIVATE_NOTE ="這一頁含當年會員的個資，預設不提供。要瀏覽請設 PRIVATE_PAGES=1 後重啟。"
 BLOCKED_DOWNLOADS = {".exe", ".scr", ".msi", ".bat", ".cmd", ".pif", ".vbs", ".jar", ".rar", ".zip", ".7z", ".lzh", ".cab"}
 IMG_TAG = re.compile(r"(?is)<img\b[^>]*>")
@@ -139,6 +141,43 @@ def article_id(query):
     q = urllib.parse.parse_qs(query)
     if q.get("act") == ["click"] and q.get("file"):
         return q["file"][0]
+
+
+def content_key(host, path, query):
+    aid = article_id(query) if path.endswith(".pl") else None
+    if aid:
+        return ("article", board_of(host, path), aid)
+    q = urllib.parse.parse_qs(query)
+    if host == vbb.HOST and path.endswith("/showthread.php"):
+        for name, kind in (("threadid", "vbbthread"), ("postid", "vbbpost")):
+            if q.get(name, [""])[0].isdigit():
+                return (kind, int(q[name][0]))
+    return ("page", host, canon(path, query))
+
+
+TAKEDOWN = {"mtime": None, "keys": frozenset()}
+
+
+def takedown_keys():
+    try:
+        mtime = TAKEDOWN_FILE.stat().st_mtime
+    except OSError:
+        return frozenset()
+    if mtime != TAKEDOWN["mtime"]:
+        keys = set()
+        for line in TAKEDOWN_FILE.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.split("#", 1)[0].strip()
+            if line:
+                s = urllib.parse.urlsplit(line if "://" in line else "http://" + line)
+                host = origin_host(s.hostname or "") or (s.hostname or "").lower()
+                keys.add(content_key(HOST_ALIAS.get(host, host), s.path or "/", s.query))
+        TAKEDOWN.update(mtime=mtime, keys=frozenset(keys))
+    return TAKEDOWN["keys"]
+
+
+def taken_down(host, path, query):
+    keys = takedown_keys()
+    return bool(keys) and content_key(host, path, query) in keys
 
 
 def is_private(host, path):
@@ -367,7 +406,8 @@ def render_list(board, host, script, page, srh="", keyword="", year=""):
     if not b or not tpl:
         return None
     _, text, url, ts, roles, row_tpls = tpl
-    items = [it for it in reversed(b["items"]) if it["ok"] or it.get("ghost")]
+    removed = takedown_keys()
+    items = [it for it in reversed(b["items"]) if (it["ok"] or it.get("ghost")) and ("article", board, it["aid"]) not in removed]
     years = sorted({it["key"][:4] for it in items}, reverse=True)
     if year:
         items = [it for it in items if it["key"].startswith(year)]
@@ -584,6 +624,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.blackhole(200, "這是連到外站的連結。當年的網站多半已經關閉或換了主人，直接點過去可能會連到不相干的網站。", to, external=True)
         if is_private(host, path) and not PRIVATE_PAGES:
             return self.blackhole(403, PRIVATE_NOTE)
+        if taken_down(host, path, query):
+            return self.blackhole(410, TAKEDOWN_NOTE, heading="此內容已移除")
         for name in [""] + (list(DIR_INDEX) if path.endswith("/") else []):
             try:
                 local = (OVERRIDE / host / urllib.parse.unquote(path + name).lstrip("/")).resolve()
@@ -612,6 +654,8 @@ class Handler(BaseHTTPRequestHandler):
         ts, file, url, _ = entry
         if is_private(*split_url(url)[:2]) and not PRIVATE_PAGES:
             return self.blackhole(403, PRIVATE_NOTE)
+        if taken_down(*split_url(url)):
+            return self.blackhole(410, TAKEDOWN_NOTE, heading="此內容已移除")
         if AGE_GATE and is_adult(*split_url(url)[:2]) and not self.age_ok():
             return self.age_gate(base(host), base("www.cgany.com"))
         self.serve(file.read_bytes(), path, url, ts, base, host)
@@ -742,13 +786,13 @@ class Handler(BaseHTTPRequestHandler):
         doc = f"<!doctype html><meta charset=utf-8><title>{html.escape(it['title'])}</title><style>{BLACKHOLE_CSS}</style><body>{body}</body>"
         self.send(404, "text/html; charset=utf-8", doc.encode("utf-8"))
 
-    def blackhole(self, status, reason, orig="", external=False):
+    def blackhole(self, status, reason, orig="", external=False, heading="你進黑洞啦！"):
         links = ["<a href='javascript:history.back()'>回上一頁</a>"]
         if not re.match(r"(?i)https?://", orig):
             orig = ""
         if orig and external:
             links.append(f"<a href='{html.escape(orig)}' target='_blank' rel='noopener noreferrer'>仍要前往原網址</a>")
-        body = (f"<div class=hole></div><h1>你進黑洞啦！</h1><p>{reason}</p>"
+        body = (f"<div class=hole></div><h1>{heading}</h1><p>{reason}</p>"
                 + (f"<p class=url>{html.escape(orig)}</p>" if orig else "") + f"<p>{'　'.join(links)}</p>")
         doc = f"<!doctype html><meta charset=utf-8><title>進黑洞啦</title><style>{BLACKHOLE_CSS}</style><body>{body}</body>"
         self.send(status, "text/html; charset=utf-8", doc.encode("utf-8"))
@@ -794,7 +838,7 @@ class Handler(BaseHTTPRequestHandler):
             f"<tr{'' if it['ok'] else ' style=color:#999'}><td>{it['key']}</td><td><a href='{html.escape(local_link(it['url'], port, path_mode))}'"
             f"{'' if it['ok'] else ' style=color:#999'}>{html.escape(it['title'])}</a>{'（只剩標題）' if it.get('ghost') else ''}</td>"
             f"<td>{html.escape(it['author'])}</td></tr>"
-            for it in b["items"] if it["key"][:4] == year)
+            for it in b["items"] if it["key"][:4] == year and ("article", key, it["aid"]) not in takedown_keys())
         switch = ("" if PUBLIC else f"｜<a href='/__archive/board?b={bq}&y={year}'>改用子網域模式開文章</a>" if path_mode
                   else f"｜<a href='/__archive/board?b={bq}&y={year}&mode=path'>子網域模式打不開？改用路徑模式</a>")
         self.page(200, html.escape(f"{b['name'] or key} 文章總覽"),
@@ -837,6 +881,7 @@ if __name__ == "__main__":
     ARCHIVE = Archive()
     threading.Thread(target=ARCHIVE.build_overview, daemon=True).start()
     VBB = vbb.Board(ARCHIVE.find, decode)
+    VBB.removed = lambda kind, value: (kind, value) in takedown_keys()
     if VBB.ready:
         VBB.add_listed(VBB.listed_rows())
         for (h, key), entry in ARCHIVE.exact.items():
