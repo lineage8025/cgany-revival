@@ -44,7 +44,9 @@ docker compose down              # 停止
 
 **自己補檔案**：放在 `<DATA>\cgany_build\override\<網域>\<路徑>` 的檔案會優先於存檔，原始資料不用動。
 
-音樂播放器：把歌曲用歌名當檔名放進 `override\www.cgany.com\music\`（例如 `くじびきアンバランス.mp3`，全形半形、大小寫、空白不影響比對），歌單就只列出有檔案的歌，原歌單沒有的歌排在最後；資料夾裡一首都沒有時維持原歌單。支援 mp3、m4a、aac、ogg、opus、flac、wav、webm。播放器原本靠 Windows Media Player 外掛，伺服器會自動把它換成 HTML5 `<audio>`，播完自動換下一首。加歌後重新整理即可，不用重啟容器。
+音樂播放器：把歌曲用歌名當檔名放進 `override\www.cgany.com\music\`（例如 `くじびきアンバランス.mp3`，全形半形、大小寫、空白不影響比對），有檔案的歌會排在歌單最前面（原歌單沒有的歌也會加進來），後面接原歌單其他的歌。播放器只在有檔案的歌之間輪播；在 LIST 點到沒有檔案的舊歌，3 秒後會跳回第一首。資料夾裡一首都沒有時維持原歌單的行為。支援 mp3、m4a、aac、ogg、opus、flac、wav、webm。播放器原本靠 Windows Media Player 外掛，伺服器會自動把它換成 HTML5 `<audio>`。加歌後重新整理即可，不用重啟容器。
+
+存檔裡的執行檔與壓縮檔（例如首頁「解除色情守門員限制」連到的 `godie.rar`，內含來源不明的 `u.exe`）一律不提供下載，連結保留、點了顯示說明頁。
 
 設定用環境變數或 repo 根目錄的 `.env`：
 
@@ -54,6 +56,17 @@ docker compose down              # 停止
 | `CGANY_PORT` | `8000` | 本機連接埠 |
 | `WAYBACK_EXTERNAL` | `0` | `1` 時外站圖片和連結改走 Wayback。每開一篇文章，瀏覽器就會向 Wayback 發出好幾個請求，和下載程式同時跑容易被暫時封 IP |
 | `PRIVATE_PAGES` | `0` | `1` 時開放 itaiwan 的 `/phpadm/` 和 `/vbb/member.php`（含會員個資，只限本機） |
+
+### vBulletin 交流區（itaiwan `/vbb/`，2001–2003）
+
+存檔裡的 phpMyAdmin 頁面可以拼回當年 vBulletin 論壇的部分資料庫，`revive/vbb.py` 用它重建交流區：
+
+1. 先跑 `python3 -I tools/vbb_extract.py`，產出 `<DATA>\cgany_build\vbb\vbb.json`（在 repo 外面）。只保留看板、討論串、文章與會員的暱稱、頭銜、加入日期、發文數；email、IP、密碼與私人訊息一律不輸出。
+2. 伺服器啟動時讀這個檔案（`compose.yaml` 已掛載），沒有這個檔案就維持只放存檔頁。
+
+- 論壇首頁用存檔頁，底下多一個「其他存到的文章」入口，收看板不明的討論串。
+- 看板頁用存檔頁當外殼，列出資料庫與存檔列表裡的全部討論串；文章頁有存檔就用存檔，沒有就用資料庫裡的 `postbit` 樣板重組，包含當年 RPG 外掛的等級與 HP／MP／Exp。
+- 只剩標題的討論串顯示「這篇文章沒能留下來」；「18禁 For 幻夢之星」看板比照成人區處理。
 
 ## 公開部署
 

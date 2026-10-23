@@ -7,6 +7,7 @@ services:
       - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_archive:/data/cgany_archive:ro
       - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_com_archive:/data/cgany_com_archive:ro
       - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_build/override:/data/override:ro
+      - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_build/vbb:/data/vbb:ro
     environment:
       BASE_DOMAIN: "${BASE_DOMAIN:-}"
       SUBDOMAIN_SEP: "${SUBDOMAIN_SEP:-}"

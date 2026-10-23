@@ -1,6 +1,8 @@
-import collections, html, mimetypes, os, posixpath, re, threading, traceback, unicodedata, urllib.parse
+import collections, hashlib, html, mimetypes, os, posixpath, re, threading, traceback, unicodedata, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+import vbb
 
 ARCHIVES = [Path(p) for p in os.environ.get("CGANY_ARCHIVES", "/data/cgany_archive,/data/cgany_com_archive").split(",")]
 OVERRIDE = Path(os.environ.get("CGANY_OVERRIDE", "/data/override")).resolve()
@@ -24,9 +26,10 @@ DIR_INDEX = ("index.html", "index.htm", "default.htm")
 HTML_EXT = {"", ".htm", ".html", ".pl", ".cgi", ".php", ".asp", ".aspx", ".shtml"}
 AUDIO_SHIM = ("<script>a='<audio id=\"iwater\" autoplay src=\"';b='\" data-src=\"';c='\"></audio>';"
               "var iwMode=mode;mode=function(){var e=document.getElementById('iwater');"
-              "if(songPlaying&&e&&e.paused){e.play();return;}iwMode();};"
-              "var iwIn=bgm_in;bgm_in=function(t){iwIn(t);clearTimeout(timer);var e=document.getElementById('iwater');"
-              "if(e){e.onended=function(){bgm_in(nextTrack);};e.onerror=function(){setTimeout(function(){bgm_in(nextTrack);},3000);};}};</script>")
+              "if(songPlaying&&e&&e.paused){e.play();return;}if(window.iwLocalCount){bgm_in(0);return;}iwMode();};"
+              "var iwIn=bgm_in;bgm_in=function(t){iwIn(t);clearTimeout(timer);var e=document.getElementById('iwater'),n=window.iwLocalCount||0;"
+              "if(e){e.onended=function(){bgm_in(n?(now+1<n?now+1:0):nextTrack);};"
+              "e.onerror=function(){setTimeout(function(){bgm_in(n?0:nextTrack);},3000);};}};</script>")
 AUDIO_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".ogg": "audio/ogg", ".opus": "audio/ogg",
                ".flac": "audio/flac", ".wav": "audio/wav", ".webm": "audio/webm"}
 PLAYLIST_LINE = re.compile(r"""^\s*listTrack\(\s*'([^']*)'\s*,\s*"([^"]*)"\s*,\s*(\d+)\s*,\s*(\d+)\s*\)""", re.M)
@@ -37,6 +40,7 @@ AGE_NOTICE = ("本網站已依網站內容分級規定處理。<br><br>警告：
 AGE_ENTER = "我同意，我已年滿十八歲<br>進入"
 AGE_LEAVE = "未滿十八歲或不同意本條款<br>離開"
 PRIVATE_NOTE ="這一頁含當年會員的個資，預設不提供。要瀏覽請設 PRIVATE_PAGES=1 後重啟。"
+BLOCKED_DOWNLOADS = {".exe", ".scr", ".msi", ".bat", ".cmd", ".pif", ".vbs", ".jar", ".rar", ".zip", ".7z", ".lzh", ".cab"}
 IMG_TAG = re.compile(r"(?is)<img\b[^>]*>")
 EMAIL = re.compile(r"([\w.+-]+)(?:@|%40|&#64;|&#x40;)((?:[\w-]+\.)+[A-Za-z]{2,})", re.I)
 IMAGE_MAGIC = {b"GIF87a": "image/gif", b"GIF89a": "image/gif", b"\xff\xd8\xff": "image/jpeg", b"\x89PNG\r\n": "image/png"}
@@ -50,7 +54,7 @@ def split_url(url):
 
 def canon(path, query, raw_query=None):
     q = urllib.parse.unquote_to_bytes(query) if raw_query is None else raw_query
-    parts = [p for p in q.replace(b"&amp;", b"&").split(b"&") if p and p != b"amp" and not p.startswith(b"sid=")]
+    parts = [p for p in q.replace(b"&amp;", b"&").split(b"&") if p and p != b"amp" and not p.startswith((b"sid=", b"s="))]
     key = urllib.parse.unquote_to_bytes(path)
     return key + b"?" + b"&".join(parts) if parts else key
 
@@ -425,6 +429,8 @@ def archived(page_url, link):
         host, path, query = split_url(urllib.parse.urljoin(page_url, html.unescape(link)))
     except ValueError:
         return True
+    if host == vbb.HOST and VBB.ready and VBB.available(path, query):
+        return True
     if is_list(path, query) and (board_of(host, path), None) in ARCHIVE.templates:
         return True
     return not is_cgany(host) or ARCHIVE.find(host, path, query) is not None
@@ -438,22 +444,30 @@ def song_key(name):
     return re.sub(r"[\s\\/:*?\"<>|]", "", unicodedata.normalize("NFKC", name)).lower()
 
 
+def playlist_version(host):
+    folder = OVERRIDE / host / "music"
+    files = sorted((f.name, int(f.stat().st_mtime)) for f in folder.iterdir()) if folder.is_dir() else []
+    return hashlib.sha1(repr(["local-first", files]).encode()).hexdigest()[:8]
+
+
 def local_playlist(text, host):
     folder = OVERRIDE / host / "music"
     files = {song_key(f.stem): f for f in sorted(folder.iterdir()) if f.suffix.lower() in AUDIO_TYPES} if folder.is_dir() else {}
     if not files:
         return text
-    used, lines = set(), []
+    used, local, rest = set(), [], []
     for m in PLAYLIST_LINE.finditer(text):
         key = song_key(m[2])
-        if key in files:
+        if key in files and key not in used:
             used.add(key)
-            lines.append(f"listTrack('music/{urllib.parse.quote(files[key].name)}', \"{m[2]}\", {m[3]}, {m[4]});")
+            local.append(f"listTrack('music/{urllib.parse.quote(files[key].name)}', \"{m[2]}\", {m[3]}, {m[4]});")
+        else:
+            rest.append(m.group(0).strip() + ";")
     for key, f in files.items():
         if key not in used:
             title = f.stem.replace("\\", "\\\\").replace('"', '\\"')
-            lines.append(f"listTrack('music/{urllib.parse.quote(f.name)}', \"{title}\", 0, 0);")
-    return "\n".join(lines) + "\n"
+            local.append(f"listTrack('music/{urllib.parse.quote(f.name)}', \"{title}\", 0, 0);")
+    return "\n".join(local + rest) + f"\nvar iwLocalCount = {len(local)};\n"
 
 
 def link_note(page_url, link):
@@ -508,6 +522,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_get(self):
         host, path, query, base = self.route()
+        if path and path.endswith("/iw_listTrack.js"):
+            query = ""
+        if path and os.path.splitext(urllib.parse.unquote(path).lower().rstrip("/"))[1] in BLOCKED_DOWNLOADS:
+            return self.blackhole(403, "這是當年留下的下載檔（壓縮檔或執行檔），來源不明，不提供下載。")
         if host is None and path in ("/", "/board"):
             path = "/__archive" + path
         if path and path.startswith("/__archive"):
@@ -539,6 +557,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.serve(local.read_bytes(), path + name, f"http://{host}{path}{name}", "local", base, host)
             except (ValueError, OSError):
                 pass
+        if host == vbb.HOST and VBB.ready and path in ("/vbb/forumdisplay.php", "/vbb/showthread.php"):
+            handled = self.vbb_page(host, path, query, base)
+            if handled is not False:
+                return handled
         if is_list(path, query):
             q = {k: v[0] for k, v in urllib.parse.parse_qs(query).items()}
             page, year = q.get("page", "1")[:6], q.get("year", "")
@@ -560,10 +582,39 @@ class Handler(BaseHTTPRequestHandler):
             return self.age_gate(base(host), base("www.cgany.com"))
         self.serve(file.read_bytes(), path, url, ts, base, host)
 
+    def vbb_page(self, host, path, query, base):
+        adult = VBB.adult(path, query)
+        if AGE_GATE and adult and not self.age_ok():
+            return self.age_gate(base(host), base("www.cgany.com"))
+        if path.endswith("/showthread.php") and ARCHIVE.find(host, path, query):
+            return False
+        q = urllib.parse.parse_qs(query)
+        if path.endswith("/forumdisplay.php"):
+            fid = q.get("forumid", ["x"])[0]
+            forum = VBB.forums.get(int(fid)) if fid.isdigit() else None
+            if not forum or str(forum.get("cancontainthreads", "1")) == "0":
+                return self.redirect(f"{base(host)}/vbb/index.php")
+            page = VBB.forumdisplay(int(fid))
+        else:
+            tid = VBB.thread_of(q)
+            if tid is None or tid not in VBB.threads:
+                return False
+            if "postid" in q:
+                return self.redirect(f"{base(host)}/vbb/showthread.php?threadid={tid}#post{q['postid'][0]}")
+            if tid not in VBB.posts:
+                return self.ghost_page(VBB.ghost_item(tid))
+            page = VBB.showthread(tid)
+        if not page:
+            return False
+        text, url, ts = page
+        return self.send_html(hide_images(text, url) if adult else text, url, ts, base, host)
+
     def serve(self, data, path, url, ts, base, host):
         ctype = self.content_type(path, data)
         if ctype == "text/html":
             text = decode(data)
+            if host == vbb.HOST and VBB.ready and path in ("/vbb/", "/vbb/index.php"):
+                text = VBB.decorate_index(text)
             if is_adult(host, path) or is_adult(*split_url(url)[:2]):
                 text = hide_images(text, url)
             return self.send_html(text, url, ts, base, host)
@@ -577,6 +628,8 @@ class Handler(BaseHTTPRequestHandler):
                       self.rewrite_html(mark_missing(hide_spam(text), url), ts, base, host))
         text = re.sub(r"""(?is)(<script\b[^>]*\bsrc\s*=\s*["']?[^"'>]*iw_system\.js["']?[^>]*>\s*</script>)""",
                       lambda m: m.group(1) + AUDIO_SHIM, text, count=1)
+        text = re.sub(r"""(?i)(\bsrc\s*=\s*["']?[^"'\s>]*iw_listTrack\.js)(?=["'\s>])""",
+                      lambda m: f"{m.group(1)}?v={playlist_version(host)}", text, count=1)
         self.send(200, "text/html; charset=utf-8", text.encode("utf-8"),
                   {"X-Archive-Timestamp": ts, "X-Archive-Original": urllib.parse.quote(url, safe=":/?&=%")})
 
@@ -727,8 +780,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def send(self, status, ctype, data, headers=None):
-        if MASK_EMAILS and (ctype.startswith("text/") or "javascript" in ctype):
-            data = mask_emails(data.decode("utf-8")).encode("utf-8")
+        text_type = ctype.startswith("text/") or "javascript" in ctype
+        headers = {"Cache-Control": "no-cache" if text_type else "private, max-age=3600", **(headers or {})}
+        if text_type:
+            if MASK_EMAILS:
+                data = mask_emails(data.decode("utf-8")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
@@ -744,5 +800,13 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     ARCHIVE = Archive()
     threading.Thread(target=ARCHIVE.build_overview, daemon=True).start()
+    VBB = vbb.Board(ARCHIVE.find, decode)
+    if VBB.ready:
+        VBB.add_listed(VBB.listed_rows())
+        for (h, key), entry in ARCHIVE.exact.items():
+            m = re.match(rb"/vbb/avatar\.php\?userid=(\d+)", key)
+            if h == vbb.HOST and m:
+                VBB.avatars[int(m[1])] = f'<img src="{html.escape(urllib.parse.urlsplit(entry[2]).path.rsplit("/", 1)[-1] + "?" + urllib.parse.urlsplit(entry[2]).query)}" border="0" alt="">'
+        print(f"vbb: {len(VBB.forums)} forums, {len(VBB.threads)} threads, {sum(map(len, VBB.posts.values()))} posts", flush=True)
     print(f"loaded {len(ARCHIVE.exact)} urls, listening on :{PORT}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

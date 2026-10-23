@@ -5,7 +5,7 @@
 ## 目前狀態（2026-10-22）
 
 - **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。itaiwan 的 `/phpadm/` 和 `/vbb/member.php` 也在 2026-10-23 補抓完了：phpadm 4,316 / 4,351 頁（剩下 35 頁重試後仍是 404），member.php 1,055 / 1,055 頁。
-- **私人 repo**：`lineage8025/cgany-revival`。Windows 這邊已經有一份 clone 在 `%USERPROFILE%\cgany-revival\`，目前只有工具和文件。
+- **公開 repo**：`lineage8025/cgany-revival`（使用者 2026-10-22 決定公開；commit 一律用 noreply 信箱，見下方「Git 和 GitHub」）。Windows 那邊另有一份 clone 在 `%USERPROFILE%\cgany-revival\`。
 - **架構分析**已完成，見 `ARCHITECTURE.md`。
 - **已開給夥伴試看**（2026-10-23）：<https://cgany.loveloli.org>，經 Cloudflare Tunnel `cgany-revival`（cloudflared 跑在本機 compose 的 `tunnel` 服務）＋Access application `cgany-revival`（Everyone、One-time PIN、session 168h）。管理用的 Cloudflare API token 在本機 `~/.config/cloudflare/cgany.env`，tunnel token 在 repo 的 `.env`，兩者都不進版控。切到公開模式後，本機的 `*.localhost` 網址不再適用，一律走公開網址。
 - **公開模式**：`.env` 設 `BASE_DOMAIN`（預計 `cgany.loveloli.org`、`SUBDOMAIN_SEP=-`）就切換，部署方式見 `README.md` 的「公開部署」。使用者決定：子網域模式、成人區的圖片全部遮掉，進入前的確認頁用原站 `warning.htm` 的外觀、內文改成分級標示與條款、公告不留信箱、改請大家到 repo 開 issue、圖片都已不在所以不另做版權移除聲明。架設位置還沒決定；先開給夥伴試看時，用 Cloudflare Tunnel＋Access（Include Everyone、One-time PIN 登入，2026-10-23 決定）。
@@ -84,6 +84,7 @@
 
      也就是說，版面結構（看板、權限、表情符號、樣板）可以完整重建，文章只剩約 1%。另外有 `primary_key=...` 的單筆頁面（post 30 筆、user 28 筆），內容較完整。
    - vBulletin 的文章本體（`showthread.php`）在 Wayback 上幾乎沒有存檔；`/newvbb/` 只有 2002-02 的首頁一頁，其他都是 404。
+   - **已重建 vBulletin 交流區**（2026-10-23）：`tools/vbb_extract.py` 把上述資料（去除個資、不含私人訊息）輸出成 `cgany_build/vbb/vbb.json`，`revive/vbb.py` 依此產生看板頁與文章頁，用法見 README。載入後共 32 個看板（含「其他存到的文章」）、885 個討論串、430 篇文章。
 
 ## 已知的坑
 
