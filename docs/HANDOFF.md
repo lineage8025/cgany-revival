@@ -1,12 +1,12 @@
 # Handoff：cgany 模擬復活計畫
 
-寫給接手的 Claude Code（在 WSL 裡跑）。之前的工作是在 Windows 上做的，那邊的記憶你讀不到，需要知道的都寫在這裡。開始前請先讀 `README.md` 和 `ARCHITECTURE.md`。
+寫給接手的 Claude Code（在 WSL 裡跑）。之前的工作是在 Windows 上做的，那邊的記憶你讀不到，需要知道的都寫在這裡。開始前請先讀 `README.md` 和 `docs/ARCHITECTURE.md`。
 
 ## 目前狀態（2026-10-22）
 
 - **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。itaiwan 的 `/phpadm/` 和 `/vbb/member.php` 也在 2026-10-23 補抓完了：phpadm 4,316 / 4,351 頁（剩下 35 頁重試後仍是 404），member.php 1,055 / 1,055 頁。
 - **公開 repo**：`lineage8025/cgany-revival`（使用者 2026-10-22 決定公開；commit 一律用 noreply 信箱，見下方「Git 和 GitHub」）。Windows 那邊另有一份 clone 在 `%USERPROFILE%\cgany-revival\`。
-- **架構分析**已完成，見 `ARCHITECTURE.md`。
+- **架構分析**已完成，見 `docs/ARCHITECTURE.md`。
 - **已開給夥伴試看**（2026-10-23）：<https://cgany.loveloli.org>，經 Cloudflare Tunnel `cgany-revival`；2026-10-23 起改跑在使用者的 OCI VM（ARM，ssh 別名見本機 `.env` 的 `DEPLOY_HOST`），本機的容器已停用但保留，更新用 `tools/deploy.sh`＋Access application `cgany-revival`（Everyone、One-time PIN、session 168h）。管理用的 Cloudflare API token 在本機 `~/.config/cloudflare/cgany.env`，tunnel token 在 repo 的 `.env`，兩者都不進版控。切到公開模式後，本機的 `*.localhost` 網址不再適用，一律走公開網址。
 - **公開模式**：`.env` 設 `BASE_DOMAIN`（預計 `cgany.loveloli.org`、`SUBDOMAIN_SEP=-`）就切換，部署方式見 `README.md` 的「公開部署」。使用者決定：子網域模式、成人區的圖片全部遮掉，進入前的確認頁用原站 `warning.htm` 的外觀、內文改成分級標示與條款、公告不留信箱、改請大家到 repo 開 issue、圖片都已不在所以不另做版權移除聲明。架設位置還沒決定；先開給夥伴試看時，用 Cloudflare Tunnel＋Access（Include Everyone、One-time PIN 登入，2026-10-23 決定）。
 - **第一版本機瀏覽**已完成：`revive/server.py`，在 WSL 用 `docker compose up -d --build` 啟動，用法見 `README.md` 的「本機瀏覽」。它在送出頁面時才轉碼、改寫連結，原始資料不動，所以原本第 2、3 步（Big5 轉 UTF-8、連結改寫）已經涵蓋。
@@ -105,10 +105,10 @@
 
 ## 建議的下一步（照順序）
 
-0. **公開前的風險處理（2026-10-23 使用者同意，優先做）**。repo 和預覽站都已經公開，以下三項是為了把著作權和個資風險壓低：
-   - **全部板都遮圖**：目前只有成人板（`ADULT`／`hide_images`）遮圖，cg、do、acg 等板仍會讓瀏覽器向 Wayback 載入外連圖片，而那些多半是別人的同人圖、商業 CG、遊戲截圖。使用者的目標是「公開版只剩純文字」，請在公開模式（`BASE_DOMAIN` 有設時）對所有板套用 `hide_images`，本機模式可以保留看圖。
-   - **確認個資頁不外流**：`is_private` 已經擋住 `/phpadm` 和 `/vbb/member.php`，請確認公開環境的 `.env` **沒有**開 `PRIVATE_PAGES`，並在 `.env.example` 註明公開時絕對不能開。另外抽查文章內文和簽名檔，看有沒有 email、ICQ、真名、電話之類的資料，評估要不要在送出前遮掉（至少遮 email）。
-   - **下架聲明**：在首頁或確認頁加一段「本站是 Wayback 存檔的非商業重建，文字著作權屬於原作者；原作者或當事人要求移除，請到 repo 開 issue，我們會下架」，並實作一份下架清單（例如 repo 外的設定檔，列出文章 ID 或網址，命中就回「此內容已應要求移除」）。
+0. **公開前的風險處理（2026-10-23）**。repo 已公開；預覽站仍有 Cloudflare Access email 驗證（使用者決定保留）。以下是為了把著作權和個資風險壓低：
+   - ~~全部板都遮圖~~：**使用者 2026-10-23 改決定：只有成人區遮圖，其他板維持外站圖片照常顯示，不要改成全部遮。**（外站圖片是由瀏覽器向原本的圖床載入；`WAYBACK_EXTERNAL` 預設關閉，不會向 Wayback 載入。）
+   - **確認個資頁不外流**（已完成）：公開模式下程式強制關閉 `PRIVATE_PAGES`，設定檔誤開也無效；email 一律遮成 `x***@domain`。
+   - **下架聲明**（已完成 2026-10-23）：首頁公告加了【下架聲明】，並有下架清單 `override/takedown.txt`，用法見 README。
    - **成人板文字抽查**：抽查 hcg 等成人板的標題和內文，如果有描述未成年人性內容的文字，要先回報使用者，由使用者決定該板要不要公開，或是只公開列表。
 1. **貼圖板解析器**：讀索引檔，把所有 `act=click` 的文章頁解析成結構化資料。欄位：板名、文章 ID、主題、作者、發表時間、內文 HTML、圖片網址、回應列表（作者、時間、內容）、來源檔案、Wayback 時間戳。輸出成 SQLite 或 JSONL，放在 repo 外面。先拿 `cg.cgany.com` 的幾百頁試，確認格式穩定後再跑全部。不同年代的版面可能略有差異，請抽樣 2001、2004、2008、2011 年的頁面各看幾頁。
 2. **補列表頁**：`revive/server.py` 已用存檔列表當樣板重建各板列表與翻頁（`render_list`），資料來自文章頁的「主題／時間／作者」與回應時間。還沒做的：每個板只用一份樣板（不會隨年代換外觀）、人氣數多半是空的、搜尋沒有重建；完整的解析器（第 1 步）可以補齊這些。
