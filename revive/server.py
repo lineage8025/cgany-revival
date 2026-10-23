@@ -16,6 +16,7 @@ PUBLIC_SCHEME = os.environ.get("PUBLIC_SCHEME") or "https"
 WAYBACK_EXTERNAL = os.environ.get("WAYBACK_EXTERNAL", "0") == "1"
 PRIVATE_PAGES = os.environ.get("PRIVATE_PAGES", "0") == "1" and not PUBLIC
 AGE_GATE = (os.environ.get("AGE_GATE") or "1") == "1"
+NOINDEX = (os.environ.get("NOINDEX") or "1") == "1"
 ACCESS_LOG_DIR = Path(os.environ.get("ACCESS_LOG_DIR", "/data/logs"))
 ACCESS_LOG_DAYS = int(os.environ.get("ACCESS_LOG_DAYS", "30"))
 MASK_EMAILS = (os.environ.get("MASK_EMAILS") or ("1" if PUBLIC else "0")) == "1"
@@ -557,6 +558,8 @@ class Handler(BaseHTTPRequestHandler):
             query = ""
         if path and os.path.splitext(urllib.parse.unquote(path).lower().rstrip("/"))[1] in BLOCKED_DOWNLOADS:
             return self.blackhole(403, "這是當年留下的下載檔（壓縮檔或執行檔），來源不明，不提供下載。")
+        if NOINDEX and path == "/robots.txt":
+            return self.send(200, "text/plain; charset=utf-8", b"User-agent: *\nDisallow: /\n")
         if host is None and path in ("/", "/board"):
             path = "/__archive" + path
         if path and path.startswith("/__archive"):
@@ -816,6 +819,8 @@ class Handler(BaseHTTPRequestHandler):
         if text_type:
             if MASK_EMAILS:
                 data = mask_emails(data.decode("utf-8")).encode("utf-8")
+        if NOINDEX:
+            headers = {"X-Robots-Tag": "noindex, nofollow, noarchive", **(headers or {})}
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
