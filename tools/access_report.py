@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """彙總網站自己記的 access log（access-YYYY-MM-DD.log）。用法：access_report.py <log 資料夾> [天數，預設 7]"""
-import collections, datetime, os, sys
+import collections, datetime, ipaddress, os, sys
 from pathlib import Path
 
 PAGE_EXT = {"", ".htm", ".html", ".pl", ".php", ".cgi", ".asp", ".shtml"}
@@ -8,10 +8,19 @@ PAGE_EXT = {"", ".htm", ".html", ".pl", ".php", ".cgi", ".asp", ".shtml"}
 folder, days = Path(sys.argv[1]), int(sys.argv[2]) if len(sys.argv) > 2 else 7
 since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
 rows = []
+
+
+def internal(ip):
+    try:
+        return ipaddress.ip_address(ip).is_private
+    except ValueError:
+        return False
+
+
 for f in sorted(folder.glob("access-*.log")):
     for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
         parts = line.split("\t")
-        if len(parts) == 8 and parts[0] >= since:
+        if len(parts) == 8 and parts[0] >= since and (parts[3] or not internal(parts[1])):
             rows.append(dict(zip(("time", "ip", "country", "email", "host", "method", "path", "status"), parts)))
 
 def is_page(r):
