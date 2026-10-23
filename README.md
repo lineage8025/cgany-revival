@@ -98,6 +98,8 @@ SUBDOMAIN_SEP=-
 2. 在該 tunnel 的 Public Hostname 加入要公開的主機名，Service 都填 `http://revive:8000`。至少要有 `cgany`、`www-cgany`、`cg-cgany`、`hcg-cgany`、`do-cgany`、`test-cgany`、`acg-cgany`、`bbs-cgany`、`itaiwan-cgany`（都接在 `.loveloli.org` 後面）。
 3. 啟動：`docker compose --profile tunnel up -d --build`
 
+部署在另一台主機時（例如雲端 VM）：在那台 clone 這個 repo、把資料夾複製過去、建好它自己的 `.env`（`CGANY_DATA` 改成那台的路徑，tunnel token 用同一個），之後在本機執行 `tools/deploy.sh` 就會：同步 `cgany_build`（override 與 vBulletin 資料，以本機為準，本機刪掉的檔案那邊也會刪）、在那台 `git pull` 並重新建置、重啟。存檔資料有變動時加 `--data`。腳本要求程式改動已經 commit 並 push。
+
 只想先開給少數人看時，前面加一道 Cloudflare Access（站本身不用改）：Zero Trust → Access → Applications → Self-hosted，把上面的主機名都加進同一個 application，Policy 設 Allow、Include 選 Everyone、登入方式用 One-time PIN。訪客輸入自己的信箱、收驗證碼就能進；之後要收緊，把 Include 改成指定信箱即可。
 
 ## 文件

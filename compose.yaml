@@ -1,6 +1,7 @@
 services:
   revive:
     build: ./revive
+    init: true
     ports:
       - "127.0.0.1:${CGANY_PORT:-8000}:8000"
     volumes:

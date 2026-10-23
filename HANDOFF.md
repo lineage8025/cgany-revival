@@ -7,7 +7,7 @@
 - **Wayback 下載已全部完成**，不用再爬，也不要重新查 CDX。itaiwan 的 `/phpadm/` 和 `/vbb/member.php` 也在 2026-10-23 補抓完了：phpadm 4,316 / 4,351 頁（剩下 35 頁重試後仍是 404），member.php 1,055 / 1,055 頁。
 - **公開 repo**：`lineage8025/cgany-revival`（使用者 2026-10-22 決定公開；commit 一律用 noreply 信箱，見下方「Git 和 GitHub」）。Windows 那邊另有一份 clone 在 `%USERPROFILE%\cgany-revival\`。
 - **架構分析**已完成，見 `ARCHITECTURE.md`。
-- **已開給夥伴試看**（2026-10-23）：<https://cgany.loveloli.org>，經 Cloudflare Tunnel `cgany-revival`（cloudflared 跑在本機 compose 的 `tunnel` 服務）＋Access application `cgany-revival`（Everyone、One-time PIN、session 168h）。管理用的 Cloudflare API token 在本機 `~/.config/cloudflare/cgany.env`，tunnel token 在 repo 的 `.env`，兩者都不進版控。切到公開模式後，本機的 `*.localhost` 網址不再適用，一律走公開網址。
+- **已開給夥伴試看**（2026-10-23）：<https://cgany.loveloli.org>，經 Cloudflare Tunnel `cgany-revival`；2026-10-23 起改跑在使用者的 OCI VM（ARM，ssh 別名見本機 `.env` 的 `DEPLOY_HOST`），本機的容器已停用但保留，更新用 `tools/deploy.sh`＋Access application `cgany-revival`（Everyone、One-time PIN、session 168h）。管理用的 Cloudflare API token 在本機 `~/.config/cloudflare/cgany.env`，tunnel token 在 repo 的 `.env`，兩者都不進版控。切到公開模式後，本機的 `*.localhost` 網址不再適用，一律走公開網址。
 - **公開模式**：`.env` 設 `BASE_DOMAIN`（預計 `cgany.loveloli.org`、`SUBDOMAIN_SEP=-`）就切換，部署方式見 `README.md` 的「公開部署」。使用者決定：子網域模式、成人區的圖片全部遮掉，進入前的確認頁用原站 `warning.htm` 的外觀、內文改成分級標示與條款、公告不留信箱、改請大家到 repo 開 issue、圖片都已不在所以不另做版權移除聲明。架設位置還沒決定；先開給夥伴試看時，用 Cloudflare Tunnel＋Access（Include Everyone、One-time PIN 登入，2026-10-23 決定）。
 - **第一版本機瀏覽**已完成：`revive/server.py`，在 WSL 用 `docker compose up -d --build` 啟動，用法見 `README.md` 的「本機瀏覽」。它在送出頁面時才轉碼、改寫連結，原始資料不動，所以原本第 2、3 步（Big5 轉 UTF-8、連結改寫）已經涵蓋。
 
