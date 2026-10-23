@@ -9,6 +9,7 @@ services:
       - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_com_archive:/data/cgany_com_archive:ro
       - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_build/override:/data/override:ro
       - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/cgany_build/vbb:/data/vbb:ro
+      - ${CGANY_DATA:?在 .env 設定 CGANY_DATA}/logs:/data/logs
     environment:
       BASE_DOMAIN: "${BASE_DOMAIN:-}"
       SUBDOMAIN_SEP: "${SUBDOMAIN_SEP:-}"
@@ -24,6 +25,8 @@ services:
     mem_limit: 512m
     cpus: 1.0
     pids_limit: 200
+    logging:
+      options: {max-size: 10m, max-file: "3"}
     restart: unless-stopped
 
   tunnel:
@@ -38,4 +41,6 @@ services:
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+    logging:
+      options: {max-size: 10m, max-file: "3"}
     restart: unless-stopped

@@ -1,4 +1,4 @@
-import collections, hashlib, html, mimetypes, os, posixpath, re, threading, traceback, unicodedata, urllib.parse
+import collections, datetime, hashlib, html, mimetypes, os, posixpath, re, threading, traceback, unicodedata, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -16,6 +16,8 @@ PUBLIC_SCHEME = os.environ.get("PUBLIC_SCHEME") or "https"
 WAYBACK_EXTERNAL = os.environ.get("WAYBACK_EXTERNAL", "0") == "1"
 PRIVATE_PAGES = os.environ.get("PRIVATE_PAGES", "0") == "1" and not PUBLIC
 AGE_GATE = (os.environ.get("AGE_GATE") or "1") == "1"
+ACCESS_LOG_DIR = Path(os.environ.get("ACCESS_LOG_DIR", "/data/logs"))
+ACCESS_LOG_DAYS = int(os.environ.get("ACCESS_LOG_DAYS", "30"))
 MASK_EMAILS = (os.environ.get("MASK_EMAILS") or ("1" if PUBLIC else "0")) == "1"
 ADULT = (("hcg.cgany.com", "/"), ("cgany.itaiwan.net", "/hcg/"), ("www.cgany.com", "/hcg/"), ("www.cgany.com", "/q7q7/"))
 ADULT_BOARDS = ("hcg.cgany.com/", "www.cgany.com/hcg/", "www.cgany.com/q7q7/")
@@ -493,8 +495,37 @@ def mark_missing(text, page_url):
     return OPTION_TAG.sub(option_tag, A_TAG.sub(a_tag, text))
 
 
+LOG_LOCK, LOG_PRUNED = threading.Lock(), [None]
+
+
+def write_access_log(fields):
+    if not ACCESS_LOG_DIR.is_dir():
+        return
+    now = datetime.datetime.now(datetime.timezone.utc)
+    line = "\t".join([now.strftime("%Y-%m-%dT%H:%M:%SZ")] + [re.sub(r"[\t\r\n]", " ", str(f)) for f in fields])
+    with LOG_LOCK:
+        try:
+            with open(ACCESS_LOG_DIR / f"access-{now:%Y-%m-%d}.log", "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+            if LOG_PRUNED[0] != now.date():
+                LOG_PRUNED[0] = now.date()
+                cutoff = f"access-{now - datetime.timedelta(days=ACCESS_LOG_DAYS):%Y-%m-%d}.log"
+                for old in ACCESS_LOG_DIR.glob("access-*.log"):
+                    if old.name < cutoff:
+                        old.unlink()
+        except OSError:
+            pass
+
+
 class Handler(BaseHTTPRequestHandler):
     timeout = 60
+
+    def log_request(self, code="-", size="-"):
+        super().log_request(code, size)
+        h = getattr(self, "headers", None) or {}
+        write_access_log([h.get("Cf-Connecting-IP") or self.client_address[0], h.get("Cf-IPCountry", ""),
+                          h.get("Cf-Access-Authenticated-User-Email", ""), h.get("Host", ""), self.command or "",
+                          getattr(self, "path", ""), getattr(code, "value", code)])
 
     def host_port(self):
         hostport = self.headers.get("Host", "")
